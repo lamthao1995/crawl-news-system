@@ -101,41 +101,37 @@ jobs:
           docker compose logs temporal --tail 200 || true
           exit 1
 
-      - name: Wait for at least one crawl-worker poller
+      - name: Wait for crawl-worker to start polling Temporal
+        # The worker prints "Polling Temporal ..." after factory.start() succeeds (WorkerMain.java),
+        # which is the definitive signal it has registered pollers on news-task-queue. We match on
+        # logs from any replica (deploy.replicas: 3).
         run: |
-          for i in $(seq 1 60); do
-            out=$(docker compose exec -T temporal-admin-tools \
-                    temporal --address temporal:7233 task-queue describe \
-                      --task-queue news-task-queue 2>/dev/null || true)
-            if echo "$out" | grep -qi 'identity'; then
-              echo "$out"
-              echo "worker is polling"
+          for i in $(seq 1 90); do
+            if docker compose logs crawl-worker 2>&1 | grep -q 'Polling Temporal'; then
+              echo "crawl-worker is polling"
               exit 0
             fi
             sleep 2
           done
-          echo "No worker polling after timeout" >&2
-          docker compose logs crawl-worker --tail 200 || true
+          echo "No crawl-worker poller after timeout" >&2
+          docker compose logs crawl-worker --tail 400 || true
           exit 1
 
-      - name: Run NewsDemoWorkflow and assert result
+      - name: Execute NewsDemoWorkflow and assert result
+        # `workflow execute` starts AND blocks until completion, printing the result. This avoids
+        # the race where `workflow show` is polled before the workflow task has even started.
         run: |
           wfid="ci-smoke-$(date +%s)"
-          docker compose exec -T temporal-admin-tools \
-            temporal --address temporal:7233 workflow start \
+          result=$(docker compose exec -T temporal-admin-tools \
+            temporal --address temporal:7233 workflow execute \
               --task-queue news-task-queue \
               --type NewsDemoWorkflow \
               --workflow-id "$wfid" \
-              --input '"ci"'
-          # Block until the workflow completes, then print result.
-          result=$(docker compose exec -T temporal-admin-tools \
-            temporal --address temporal:7233 workflow show \
-              --workflow-id "$wfid" --output json 2>/dev/null | \
-            tr -d '\r')
-          echo "$result" | tail -200
-          echo "$result" | grep -q '"ok:ci"' || {
+              --input '"ci"' 2>&1)
+          echo "$result"
+          echo "$result" | grep -q 'ok:ci' || {
             echo "Smoke workflow did not return expected result" >&2
-            docker compose logs crawl-worker --tail 200 || true
+            docker compose logs crawl-worker --tail 400 || true
             exit 1
           }
 

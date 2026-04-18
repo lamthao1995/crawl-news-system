@@ -116,9 +116,17 @@ services:
       CRAWL_ALLOWED_HOST_SUFFIX: investing.com
       CRAWL_CB_FAILURE_THRESHOLD: "5"
       CRAWL_CB_OPEN_SECONDS: "90"
+      # Per-worker concurrency (defaults shown); increase when running multiple workflows in parallel
+      WORKER_MAX_ACTIVITIES: "16"
+      WORKER_MAX_WORKFLOW_TASKS: "8"
+      WORKER_MAX_LOCAL_ACTIVITIES: "16"
     networks:
       - temporal-network
     restart: on-failure
+    # Compose v2 honors deploy.replicas for `docker compose up`. Override on the CLI with
+    # `docker compose up -d --scale crawl-worker=N` to change without editing this file.
+    deploy:
+      replicas: 3
 
 networks:
   temporal-network:

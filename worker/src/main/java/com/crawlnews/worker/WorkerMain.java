@@ -11,6 +11,7 @@ import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.serviceclient.WorkflowServiceStubsOptions;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
+import io.temporal.worker.WorkerOptions;
 
 public final class WorkerMain {
 
@@ -23,6 +24,9 @@ public final class WorkerMain {
     String target = env("TEMPORAL_TARGET", "127.0.0.1:7233");
     String namespace = env("TEMPORAL_NAMESPACE", "default");
     String taskQueue = env("TEMPORAL_TASK_QUEUE", "news-task-queue");
+    int maxActivities = envInt("WORKER_MAX_ACTIVITIES", 16);
+    int maxWorkflowTasks = envInt("WORKER_MAX_WORKFLOW_TASKS", 8);
+    int maxLocalActivities = envInt("WORKER_MAX_LOCAL_ACTIVITIES", 16);
 
     for (int attempt = 1; attempt <= 90; attempt++) {
       WorkflowServiceStubs service = null;
@@ -47,14 +51,27 @@ public final class WorkerMain {
                 WorkflowClientOptions.newBuilder().setNamespace(namespace).build());
         factory = WorkerFactory.newInstance(client);
 
-        Worker worker = factory.newWorker(taskQueue);
+        WorkerOptions workerOptions =
+            WorkerOptions.newBuilder()
+                .setMaxConcurrentActivityExecutionSize(maxActivities)
+                .setMaxConcurrentWorkflowTaskExecutionSize(maxWorkflowTasks)
+                .setMaxConcurrentLocalActivityExecutionSize(maxLocalActivities)
+                .build();
+        Worker worker = factory.newWorker(taskQueue, workerOptions);
         worker.registerWorkflowImplementationTypes(
             NewsDemoWorkflowImpl.class, InvestingSpiralCrawlWorkflowImpl.class);
         worker.registerActivitiesImplementations(new DemoActivitiesImpl(), new CrawlActivitiesImpl());
 
         System.err.printf(
-            "[crawl-worker] Starting WorkerFactory (target=%s namespace=%s taskQueue=%s)%n",
-            target, namespace, taskQueue);
+            "[crawl-worker] Starting WorkerFactory"
+                + " (target=%s namespace=%s taskQueue=%s"
+                + " maxActivities=%d maxWorkflowTasks=%d maxLocalActivities=%d)%n",
+            target,
+            namespace,
+            taskQueue,
+            maxActivities,
+            maxWorkflowTasks,
+            maxLocalActivities);
         factory.start();
         System.err.printf(
             "[crawl-worker] Polling Temporal target=%s namespace=%s taskQueue=%s%n",
@@ -90,6 +107,26 @@ public final class WorkerMain {
   private static String env(String key, String defaultValue) {
     String v = System.getenv(key);
     return v == null || v.isBlank() ? defaultValue : v;
+  }
+
+  private static int envInt(String key, int defaultValue) {
+    String v = System.getenv(key);
+    if (v == null || v.isBlank()) {
+      return defaultValue;
+    }
+    try {
+      int parsed = Integer.parseInt(v.trim());
+      if (parsed <= 0) {
+        System.err.printf(
+            "[crawl-worker] %s=%s is not positive, using default %d%n", key, v, defaultValue);
+        return defaultValue;
+      }
+      return parsed;
+    } catch (NumberFormatException e) {
+      System.err.printf(
+          "[crawl-worker] %s=%s not a valid int, using default %d%n", key, v, defaultValue);
+      return defaultValue;
+    }
   }
 
   private static void shutdownQuietly(WorkerFactory factory, WorkflowServiceStubs service) {

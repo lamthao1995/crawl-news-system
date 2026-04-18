@@ -30,3 +30,8 @@ replay_pid*
 *.log
 *.tmp
 *.temp
+
+# Local env (use .env.example as the tracked template)
+.env
+.env.*
+!.env.example

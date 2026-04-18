@@ -1,7 +1,14 @@
 package com.crawlnews.crawl.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.io.Serializable;
 
+/**
+ * Workflow input DTO. Deserialization is forgiving: unknown fields (old clients, extra UI fields,
+ * typos) are ignored instead of failing the workflow task. Missing fields fall back to the
+ * constructor defaults, which the workflow then clamps to safe ranges.
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class InvestingCrawlInput implements Serializable {
 
   private static final long serialVersionUID = 1L;

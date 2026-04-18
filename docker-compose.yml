@@ -9,6 +9,12 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - crawl-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
 
   crawl-postgres:
     container_name: crawl-postgres
@@ -39,8 +45,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
     networks:
       - temporal-network
-    ports:
-      - "5432:5432"
+    # No ports: Temporal uses this internally; not exposed to host by default.
     volumes:
       - temporal-postgres:/var/lib/postgresql/data
 
@@ -98,7 +103,7 @@ services:
       temporal:
         condition: service_started
       redis:
-        condition: service_started
+        condition: service_healthy
       crawl-postgres:
         condition: service_healthy
     environment:
@@ -120,6 +125,10 @@ services:
       WORKER_MAX_ACTIVITIES: "16"
       WORKER_MAX_WORKFLOW_TASKS: "8"
       WORKER_MAX_LOCAL_ACTIVITIES: "16"
+      # Gentle per-URL spacing before HTTP fetch; set to "0" to disable.
+      CRAWL_PER_URL_SLEEP_MS: "350"
+      # Hard cap on per-response body size (bytes) after optional gzip decode.
+      CRAWL_MAX_BODY_BYTES: "4194304"
     networks:
       - temporal-network
     restart: on-failure

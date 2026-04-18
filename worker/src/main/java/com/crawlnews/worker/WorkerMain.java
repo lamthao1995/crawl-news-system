@@ -60,7 +60,8 @@ public final class WorkerMain {
         Worker worker = factory.newWorker(taskQueue, workerOptions);
         worker.registerWorkflowImplementationTypes(
             NewsDemoWorkflowImpl.class, InvestingSpiralCrawlWorkflowImpl.class);
-        worker.registerActivitiesImplementations(new DemoActivitiesImpl(), new CrawlActivitiesImpl());
+        CrawlActivitiesImpl crawlActivities = new CrawlActivitiesImpl();
+        worker.registerActivitiesImplementations(new DemoActivitiesImpl(), crawlActivities);
 
         System.err.printf(
             "[crawl-worker] Starting WorkerFactory"
@@ -78,12 +79,14 @@ public final class WorkerMain {
             target, namespace, taskQueue);
         final WorkerFactory runningFactory = factory;
         final WorkflowServiceStubs runningService = service;
+        final CrawlActivitiesImpl runningActivities = crawlActivities;
         Runtime.getRuntime()
             .addShutdownHook(
                 new Thread(
                     () -> {
                       runningFactory.shutdown();
                       runningService.shutdown();
+                      runningActivities.close();
                     }));
 
         try {
@@ -93,6 +96,7 @@ public final class WorkerMain {
         }
         factory.shutdown();
         service.shutdown();
+        crawlActivities.close();
         return;
       } catch (Throwable t) {
         System.err.printf("Waiting for Temporal (%d/90): %s%n", attempt, t.getMessage());

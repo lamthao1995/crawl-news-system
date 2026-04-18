@@ -2,6 +2,8 @@
 
 > Temporal-orchestrated news crawling in **Java 21**: spiral BFS from a seed URL, **three-layer dedup** (workflow + Redis `SET NX` + Postgres `url_sha256`), **Redis per-domain circuit breaker**, and **Docker Compose** for one-shot local / single-host deploys.
 
+> Built with help from **Claude Agent** (Anthropic) — pair-coding through design, refactors, bug hunts, and CI setup.
+
 ---
 
 ## Architecture
@@ -241,6 +243,7 @@ Open **Temporal UI** → namespace **default** → workflow → history / result
 | `WORKER_MAX_ACTIVITIES` | `16` | Max concurrent activity executions per worker |
 | `WORKER_MAX_WORKFLOW_TASKS` | `8` | Max concurrent workflow task executions per worker |
 | `WORKER_MAX_LOCAL_ACTIVITIES` | `16` | Max concurrent local-activity executions per worker |
+| `CRAWL_PER_URL_SLEEP_MS` | `350` | Gentle per-URL spacing before HTTP fetch (set `0` to disable) |
 
 ### Scaling
 
@@ -295,6 +298,30 @@ crawl-news-system/
         ├── crawl/dto/              # Workflow / activity DTOs
         └── worker/                 # WorkerMain, workflows, activities
 ```
+
+---
+
+## Continuous Integration
+
+GitHub Actions pipeline in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to `main` and on every pull request:
+
+- **`build-test`** — JDK 21 + Maven cache, `mvn -B verify` (compile + **JUnit 5 tests** + **JaCoCo** coverage + shaded jar). Fails if the shaded JAR is missing merged gRPC `META-INF/services/io.grpc.LoadBalancerProvider` entries (including `RoundRobinLoadBalancerProvider`). Uploads the fat JAR, Surefire reports, and the JaCoCo HTML report as artifacts.
+- **`compose-validate`** — `docker compose config -q` catches syntax / interpolation errors.
+- **`smoke`** — builds and boots the real stack, waits for Temporal + a polling `crawl-worker`, runs `NewsDemoWorkflow` end-to-end and asserts the result (`"ok:ci"`). On failure, dumps container logs and tears the stack down.
+
+Run the same checks locally:
+
+```bash
+cd worker && mvn -B verify     # build + tests + shaded jar
+docker compose config -q       # compose syntax
+./run-all.sh                   # full smoke (manual)
+```
+
+---
+
+## Acknowledgements
+
+Codebase pair-coded with **Claude Agent** (Anthropic) for design, refactors, bug hunts, and CI setup.
 
 ---
 

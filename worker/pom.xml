@@ -14,6 +14,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>21</maven.compiler.release>
     <temporal.sdk.version>1.29.0</temporal.sdk.version>
+    <junit.version>5.11.3</junit.version>
   </properties>
 
   <dependencies>
@@ -47,10 +48,87 @@
       <artifactId>HikariCP</artifactId>
       <version>5.1.0</version>
     </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.temporal</groupId>
+      <artifactId>temporal-testing</artifactId>
+      <version>${temporal.sdk.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+        <configuration>
+          <!-- JaCoCo sets argLine via prepare-agent; keep this here so surefire receives it. -->
+          <argLine>@{argLine}</argLine>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.8.12</version>
+        <executions>
+          <execution>
+            <id>prepare-agent</id>
+            <goals><goal>prepare-agent</goal></goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>verify</phase>
+            <goals><goal>report</goal></goals>
+          </execution>
+          <execution>
+            <id>check</id>
+            <phase>verify</phase>
+            <goals><goal>check</goal></goals>
+            <configuration>
+              <rules>
+                <rule>
+                  <element>BUNDLE</element>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>0.80</minimum>
+                    </limit>
+                    <limit>
+                      <counter>BRANCH</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>0.60</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+        <configuration>
+          <!-- Only instrument our own classes. Avoids JaCoCo warnings about JDK / third-party
+               class files compiled for a newer major version than the agent supports. -->
+          <includes>
+            <include>com/crawlnews/**/*</include>
+          </includes>
+          <excludes>
+            <!-- main() is exercised end-to-end by the smoke job, not unit tests. -->
+            <exclude>com/crawlnews/worker/WorkerMain.class</exclude>
+            <!-- Requires live Redis/Postgres/HTTP; covered by smoke + integration only. -->
+            <exclude>com/crawlnews/worker/activities/CrawlActivitiesImpl.class</exclude>
+            <exclude>com/crawlnews/crawl/PostgresUrlDedupStore.class</exclude>
+            <exclude>com/crawlnews/crawl/RedisDomainCircuitBreaker.class</exclude>
+          </excludes>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>

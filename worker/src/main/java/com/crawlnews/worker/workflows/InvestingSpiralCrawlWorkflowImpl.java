@@ -112,8 +112,13 @@ public final class InvestingSpiralCrawlWorkflowImpl implements InvestingSpiralCr
         idx++;
         continue;
       }
+      if (page.isSkippedNonHtml()) {
+        summary.setSkippedNonHtml(summary.getSkippedNonHtml() + 1);
+        idx++;
+        continue;
+      }
       if (!page.isOk()) {
-        summary.setSkippedTrap(summary.getSkippedTrap() + 1);
+        summary.setFetchErrors(summary.getFetchErrors() + 1);
         idx++;
         continue;
       }
@@ -121,6 +126,13 @@ public final class InvestingSpiralCrawlWorkflowImpl implements InvestingSpiralCr
       fetched++;
       summary.getFetchedUrls().add(page.getFinalUrl());
       idx++;
+
+      // Remember the redirected destination so a later discovered link pointing at it is skipped.
+      if (page.getFinalUrl() != null && !page.getFinalUrl().isEmpty()) {
+        if (!queuedThisRun.add(page.getFinalUrl())) {
+          // already queued — nothing to do
+        }
+      }
 
       if (cur.getDepth() >= maxDepth) {
         continue;

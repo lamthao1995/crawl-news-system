@@ -3,6 +3,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
+if [[ ! -f .env && -f .env.example ]]; then
+  echo "==> .env missing, creating from .env.example"
+  cp .env.example .env
+fi
+
 echo "==> Building and starting stack (detached)..."
 docker compose up --build -d
 

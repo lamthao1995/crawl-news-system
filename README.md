@@ -238,6 +238,20 @@ Open **Temporal UI** → namespace **default** → workflow → history / result
 | `CRAWL_JDBC_USER` / `CRAWL_JDBC_PASSWORD` | `crawl` / `crawl` | Crawl DB credentials |
 | `CRAWL_CB_FAILURE_THRESHOLD` | `5` | Failures before opening circuit |
 | `CRAWL_CB_OPEN_SECONDS` | `90` | Circuit open duration |
+| `WORKER_MAX_ACTIVITIES` | `16` | Max concurrent activity executions per worker |
+| `WORKER_MAX_WORKFLOW_TASKS` | `8` | Max concurrent workflow task executions per worker |
+| `WORKER_MAX_LOCAL_ACTIVITIES` | `16` | Max concurrent local-activity executions per worker |
+
+### Scaling
+
+- **Default replicas** — `crawl-worker` has `deploy.replicas: 3` in `docker-compose.yml`, so `docker compose up -d` starts **3 worker containers** sharing `news-task-queue`. Temporal load-balances tasks across all polling workers automatically.
+- **Change replica count** — edit `deploy.replicas` in `docker-compose.yml`, or override on the CLI without editing:
+
+  ```bash
+  docker compose up -d --scale crawl-worker=5
+  ```
+
+- **Inside one worker** — bump `WORKER_MAX_ACTIVITIES` / `WORKER_MAX_WORKFLOW_TASKS` (used when several workflow executions share the worker). The current spiral workflow calls activities sequentially, so these only help when multiple executions run in parallel.
 
 Fuller narrative: [docs/java-temporal-news-crawl.md](docs/java-temporal-news-crawl.md).
 
@@ -286,4 +300,4 @@ crawl-news-system/
 
 ## License
 
-Specify your license in a `LICENSE` file at the repo root (not included in this template).
+[ISC](LICENSE) © 2026 Pham Ngoc Lam.

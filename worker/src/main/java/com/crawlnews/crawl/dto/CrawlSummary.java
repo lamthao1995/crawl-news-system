@@ -14,6 +14,8 @@ public final class CrawlSummary implements Serializable {
   private int skippedTrap;
   private int circuitOpenWaits;
   private int circuitGaveUp;
+  private int fetchErrors;
+  private int skippedNonHtml;
   private List<String> fetchedUrls = new ArrayList<>();
   /** Set when the frontier was empty at start (no HTTP / no extract ran). */
   private String idleReason;
@@ -64,6 +66,22 @@ public final class CrawlSummary implements Serializable {
 
   public void setCircuitGaveUp(int circuitGaveUp) {
     this.circuitGaveUp = circuitGaveUp;
+  }
+
+  public int getFetchErrors() {
+    return fetchErrors;
+  }
+
+  public void setFetchErrors(int fetchErrors) {
+    this.fetchErrors = fetchErrors;
+  }
+
+  public int getSkippedNonHtml() {
+    return skippedNonHtml;
+  }
+
+  public void setSkippedNonHtml(int skippedNonHtml) {
+    this.skippedNonHtml = skippedNonHtml;
   }
 
   public List<String> getFetchedUrls() {

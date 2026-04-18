@@ -1,12 +1,39 @@
 package com.crawlnews.crawl;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /** Deterministic URL canonicalization for dedup keys (safe to use from workflow code). */
 public final class UrlNormalize {
+
+  /** Query params stripped before hashing (marketing / click-trackers). Lowercase keys. */
+  private static final Set<String> TRACKING_PARAM_NAMES =
+      Set.of(
+          "utm_source",
+          "utm_medium",
+          "utm_campaign",
+          "utm_term",
+          "utm_content",
+          "utm_id",
+          "utm_name",
+          "fbclid",
+          "gclid",
+          "gclsrc",
+          "mc_cid",
+          "mc_eid",
+          "igshid",
+          "ref",
+          "ref_src",
+          "yclid",
+          "dclid",
+          "_ga");
 
   private UrlNormalize() {}
 
@@ -83,11 +110,11 @@ public final class UrlNormalize {
       while (path.length() > 1 && path.endsWith("/")) {
         path = path.substring(0, path.length() - 1);
       }
-      String query = u.getRawQuery();
+      String canonicalQuery = canonicalizeQuery(u.getRawQuery());
       StringBuilder out = new StringBuilder();
       out.append(scheme).append("://").append(auth).append(path);
-      if (query != null && !query.isEmpty()) {
-        out.append('?').append(query);
+      if (!canonicalQuery.isEmpty()) {
+        out.append('?').append(canonicalQuery);
       }
       return out.toString();
     } catch (Exception e) {
@@ -141,4 +168,31 @@ public final class UrlNormalize {
     return ("http".equalsIgnoreCase(scheme) && port == 80)
         || ("https".equalsIgnoreCase(scheme) && port == 443);
   }
+
+  /** Strips tracking params and sorts remaining params so equivalent URLs produce one dedup key. */
+  private static String canonicalizeQuery(String rawQuery) {
+    if (rawQuery == null || rawQuery.isEmpty()) {
+      return "";
+    }
+    List<String> kept = new ArrayList<>();
+    for (String pair : rawQuery.split("&")) {
+      if (pair.isEmpty()) {
+        continue;
+      }
+      int eq = pair.indexOf('=');
+      String rawKey = eq >= 0 ? pair.substring(0, eq) : pair;
+      String decodedKeyLower =
+          java.net.URLDecoder.decode(rawKey, StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
+      if (TRACKING_PARAM_NAMES.contains(decodedKeyLower)) {
+        continue;
+      }
+      kept.add(pair);
+    }
+    if (kept.isEmpty()) {
+      return "";
+    }
+    Collections.sort(kept);
+    return String.join("&", kept);
+  }
+
 }

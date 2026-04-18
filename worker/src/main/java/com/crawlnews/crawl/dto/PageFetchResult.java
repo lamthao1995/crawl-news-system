@@ -11,6 +11,7 @@ public final class PageFetchResult implements Serializable {
 
   private boolean ok;
   private boolean skippedAsDuplicate;
+  private boolean skippedNonHtml;
   private boolean circuitOpen;
   private String finalUrl;
   private String title;
@@ -29,6 +30,15 @@ public final class PageFetchResult implements Serializable {
     PageFetchResult r = new PageFetchResult();
     r.skippedAsDuplicate = true;
     r.ok = false;
+    r.sameOriginCanonicalUrls = Collections.emptyList();
+    return r;
+  }
+
+  public static PageFetchResult skippedNonHtml(String contentType) {
+    PageFetchResult r = new PageFetchResult();
+    r.skippedNonHtml = true;
+    r.ok = false;
+    r.errorMessage = "non-html: " + (contentType == null ? "" : contentType);
     r.sameOriginCanonicalUrls = Collections.emptyList();
     return r;
   }
@@ -56,6 +66,10 @@ public final class PageFetchResult implements Serializable {
 
   public boolean isSkippedAsDuplicate() {
     return skippedAsDuplicate;
+  }
+
+  public boolean isSkippedNonHtml() {
+    return skippedNonHtml;
   }
 
   public boolean isCircuitOpen() {

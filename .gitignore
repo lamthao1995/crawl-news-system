@@ -1,0 +1,32 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+*.swp
+*.swo
+
+# Maven (all modules, e.g. worker/)
+target/
+**/target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+release.properties
+dependency-reduced-pom.xml
+.flattened-pom.xml
+
+# Compiled Java (Maven outputs live under target/ above)
+*.class
+hs_err_pid*
+replay_pid*
+
+# Logs & temp
+*.log
+*.tmp
+*.temp

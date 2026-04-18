@@ -1,0 +1,130 @@
+services:
+  redis:
+    container_name: crawl-redis
+    image: redis:${REDIS_VERSION:-7-alpine}
+    networks:
+      - temporal-network
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - crawl-redis-data:/data
+
+  crawl-postgres:
+    container_name: crawl-postgres
+    image: postgres:${POSTGRESQL_VERSION}
+    environment:
+      POSTGRES_USER: crawl
+      POSTGRES_PASSWORD: crawl
+      POSTGRES_DB: crawl
+    networks:
+      - temporal-network
+    ports:
+      - "5433:5432"
+    volumes:
+      - crawl-app-postgres:/var/lib/postgresql/data
+      - ./crawl-db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crawl -d crawl"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  postgresql:
+    container_name: temporal-postgresql
+    image: postgres:${POSTGRESQL_VERSION}
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+    networks:
+      - temporal-network
+    ports:
+      - "5432:5432"
+    volumes:
+      - temporal-postgres:/var/lib/postgresql/data
+
+  temporal:
+    container_name: temporal
+    depends_on:
+      - postgresql
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PWD=${POSTGRES_PASSWORD}
+      - POSTGRES_SEEDS=postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    image: temporalio/auto-setup:${TEMPORAL_VERSION}
+    networks:
+      - temporal-network
+    ports:
+      - "7233:7233"
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig
+
+  temporal-ui:
+    container_name: temporal-ui
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:8080
+    image: temporalio/ui:${TEMPORAL_UI_VERSION}
+    networks:
+      - temporal-network
+    ports:
+      - "8080:8080"
+
+  temporal-admin-tools:
+    container_name: temporal-admin-tools
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}
+    networks:
+      - temporal-network
+    stdin_open: true
+    tty: true
+
+  crawl-worker:
+    build:
+      context: ./worker
+    depends_on:
+      temporal:
+        condition: service_started
+      redis:
+        condition: service_started
+      crawl-postgres:
+        condition: service_healthy
+    environment:
+      # Avoid gRPC/Netty "Invalid argument" / stuck pollers on some Docker Desktop (IPv6 / native transport).
+      JAVA_TOOL_OPTIONS: "-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false -Dio.grpc.netty.shaded.io.netty.transport.noNative=true"
+      TEMPORAL_PEER_HOST: temporal
+      TEMPORAL_PEER_PORT: "7233"
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TASK_QUEUE: news-task-queue
+      CRAWL_JDBC_URL: jdbc:postgresql://crawl-postgres:5432/crawl
+      CRAWL_JDBC_USER: crawl
+      CRAWL_JDBC_PASSWORD: crawl
+      REDIS_URL: redis://redis:6379/0
+      CRAWL_SEED_URL: https://www.investing.com/
+      CRAWL_ALLOWED_HOST_SUFFIX: investing.com
+      CRAWL_CB_FAILURE_THRESHOLD: "5"
+      CRAWL_CB_OPEN_SECONDS: "90"
+    networks:
+      - temporal-network
+    restart: on-failure
+
+networks:
+  temporal-network:
+    name: temporal-network
+
+volumes:
+  temporal-postgres:
+  crawl-app-postgres:
+  crawl-redis-data:
